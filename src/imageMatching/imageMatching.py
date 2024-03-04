@@ -40,31 +40,27 @@ def draw_image(image, name):
 def filter_slicer_image(image):
     hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
 
-    # Masks for different shades of red 
-    lower_red = np.array([0, 120, 70])
-    upper_red = np.array([10, 255, 255])
-    mask1 = cv2.inRange(hsv, lower_red, upper_red)
-    lower_red = np.array([170, 120, 70])
-    upper_red = np.array([180, 255, 255])
-    mask2 = cv2.inRange(hsv, lower_red, upper_red)
+    # Define lower and upper bounds for yellow color in HSV
+    lower_yellow = np.array([20, 100, 100])  # Lower bound for yellow
+    upper_yellow = np.array([30, 255, 255])  # Upper bound for yellow
 
-    mask = mask1 + mask2
+    # Create a mask to extract only yellow regions
+    mask = cv2.inRange(hsv, lower_yellow, upper_yellow)
 
     return mask
 
 
 def filter_printer_image(image):
-    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
 
-    filtered_image = cv2.medianBlur(gray, 11)
-    _, im = cv2.threshold(filtered_image, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+    # Define lower and upper bounds for green color in HSV
+    lower_green = np.array([40, 40, 40])  # Lower bound for green
+    upper_green = np.array([70, 255, 255])  # Upper bound for green
 
-    kernel = np.ones((11, 11), np.uint8)
-    # print(kernel)
-    opening = cv2.morphologyEx(im, cv2.MORPH_OPEN, kernel)
+    # Create a mask to extract only green regions
+    mask = cv2.inRange(hsv, lower_green, upper_green)
 
-    return opening
-
+    return mask
 
 def calculate_hu_moments(image):
     moments = cv2.moments(image)
