@@ -4,14 +4,25 @@ import cv2.aruco as aruco
 import glob
 import pyrealsense2 as rs
 
-marker_size = .963
-calib_size = 2.1
+# File storage in OpenCV
+cv_file = cv2.FileStorage("Object Tracking/calib_images_1920/test.yaml", cv2.FILE_STORAGE_READ)
+
+# Note : we also have to specify the type
+# to retrieve otherwise we only get a 'None'
+# FileNode object back instead of a matrix
+mtx = cv_file.getNode("camera_matrix").mat()
+dist = cv_file.getNode("dist_coeff").mat()
+
+
+cv_file.release()
+
+marker_size = 1.918
 
 # Configure depth and color streams
 pipeline = rs.pipeline()
 config = rs.config()
 
-# Get device product line for setting aq supporting resolution
+# Get device product line for setting a supporting resolution
 pipeline_wrapper = rs.pipeline_wrapper(pipeline)
 pipeline_profile = config.resolve(pipeline_wrapper)
 device = pipeline_profile.get_device()
@@ -31,53 +42,11 @@ if not found_rgb:
 if device_product_line == 'L500':
     config.enable_stream(rs.stream.color, 960, 540, rs.format.bgr8, 30)
 else:
-    config.enable_stream(rs.stream.color, 1280, 720, rs.format.bgr8, 30)
+    config.enable_stream(rs.stream.color, 1920, 1080, rs.format.bgr8, 15)
 
 
 pipeline.start(config)
 
-####---------------------- CALIBRATION ---------------------------
-# termination criteria for the iterative algorithm
-criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.001)
-
-# prepare object points, like (0,0,0), (1,0,0), (2,0,0) ....,(6,5,0)
-# checkerboard of size (7 x 6) is used
-objp = np.zeros((6*9,3), np.float32)
-objp[:,:2] = np.mgrid[0:9,0:6].T.reshape(-1,2)
-objp = objp * calib_size
-# arrays to store object points and image points from all the images.
-objpoints = [] # 3d point in real world space
-imgpoints = [] # 2d points in image plane.
-
-# iterating through all calibration images
-# in the folder
-images = glob.glob('Object Tracking/calib_images/*.png')
-count = 0
-for fname in images:
-    count += 1
-    img = cv2.imread(fname)
-    gray = cv2.cvtColor(img,cv2.COLOR_BGR2GRAY)
-
-    # find the chess board (calibration pattern) corners
-    ret, corners = cv2.findChessboardCorners(gray, (9,6),None)
-
-    # if calibration pattern is found, add object points,
-    # image points (after refining them)
-    if ret == True:
-        objpoints.append(objp)
-
-        # Refine the corners of the detected corners
-        corners2 = cv2.cornerSubPix(gray,corners,(11,11),(-1,-1),criteria)
-        imgpoints.append(corners2)
-
-        # Draw and display the corners
-        img = cv2.drawChessboardCorners(img, (9,6), corners2,ret)
-        #filename = str('images/calib_dots' + str(count) + str('.png'))
-        #cv2.imwrite(filename, img)
-
-ret, mtx, dist, rvecs, tvecs = cv2.calibrateCamera(objpoints, imgpoints, gray.shape[::-1],None,None)
-
-###------------------ ARUCO TRACKER ---------------------------
 while (True):
     frames = pipeline.wait_for_frames()
     color_frame = frames.get_color_frame()
@@ -136,7 +105,10 @@ while (True):
         cv2.putText(frame, "No Ids", (0,64), font, 1, (0,255,0),2,cv2.LINE_AA)
 
     # display the resulting frame
-    cv2.imshow('frame',frame)
+    frame2 = cv2.resize(frame, (960, 540))
+    cv2.imshow('frame',frame2)
+    
+    
     if cv2.waitKey(1) & 0xFF == ord('q'):
         break
 
