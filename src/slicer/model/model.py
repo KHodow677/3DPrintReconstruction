@@ -70,7 +70,7 @@ class Model(object):
 				(self.ymin, self.ymax),
 				(self.zmin, self.zmax))
 
-	def centre(self):
+	def center(self):
 		return ((self.xmin+self.xmax)/2,
 				(self.ymin+self.ymax)/2,
 				(self.zmin+self.zmax)/2)
@@ -136,7 +136,7 @@ class Model(object):
 					'upper': self.zmax,
 				}
 			},
-			'centre': self.centre(),
+			'center': self.center(),
 			'meanpoint': self.mean_point()
 		}
 
@@ -154,6 +154,8 @@ class Model(object):
 				output.append((points[0], points[1]))
 
 		return output
+
+    # TODO: Grab slices for x and y as well slice_at_y and slice_at_x
 
 class STLModel(Model):
 

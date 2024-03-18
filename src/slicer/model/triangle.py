@@ -87,3 +87,4 @@ class Triangle(object):
 
 		return pair
 
+    # TODO: Grab interpolated values for x and y as well
