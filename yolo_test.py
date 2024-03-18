@@ -3,6 +3,8 @@ import cv2
 import argparse
 import supervision as sv
 
+# Test Change
+
 def parse_arguments() -> argparse.Namespace:    #Define Webcam Resolution
     parser = argparse.ArgumentParser(description="yolov8")
     parser.add_argument(
