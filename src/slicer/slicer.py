@@ -23,7 +23,7 @@ def convertToPixels(vSet, width_multiplier, height_multiplier, object_center, ce
 	mmSet[:,0]*=width_multiplier
 	mmSet[:,1]*=height_multiplier
 
-	#center the object
+	# Center the object
 	mmSet[:,0]+=(center_image[0])
 	mmSet[:,0]-=(inchTomm(object_center[0])*width_multiplier)
 	mmSet[:,1]+=(center_image[1])
@@ -37,8 +37,9 @@ def convertToPixels(vSet, width_multiplier, height_multiplier, object_center, ce
 def slice_file(resolution, f=None, scale_model=None, width_px=None, height_px=None, width_printer=None, height_printer=None):
     print("Status: Loading File.")
 
-    width_multiplier = calculateMultiplier(width_px, width_printer)  # converstion from mm to pixels
-    height_multiplier = calculateMultiplier(height_px, height_printer)  # conversion from mm to pixels
+    # Converstion from mm to pixels
+    width_multiplier = calculateMultiplier(width_px, width_printer) 
+    height_multiplier = calculateMultiplier(height_px, height_printer)
 
     model = STLModel(f)
     stats = model.stats()
@@ -46,7 +47,8 @@ def slice_file(resolution, f=None, scale_model=None, width_px=None, height_px=No
     # Note these are in inches not mm
     sub_vertex = Vector(stats['extents']['x']['lower'], stats['extents']['y']['lower'], stats['extents']['z']['lower'])
 
-    center_image = [int(width_px / 2), int(height_px / 2)]  # pixels
+    # Switch to pixels
+    center_image = [int(width_px / 2), int(height_px / 2)]
 
     model.xmin = model.xmax = None
     model.ymin = model.ymax = None
@@ -98,7 +100,9 @@ def slice_file(resolution, f=None, scale_model=None, width_px=None, height_px=No
         # Now process vertices
         a = np.asarray(pairs)
         b = a.flatten()
-        vert_array = b.reshape(int(b.shape[0] / 2), 2)  # this is now twice as long and just not four wide, it is now too wide
+
+        # Hacky Fix: This is now twice as long and just not four wide, it is now too wide
+        vert_array = b.reshape(int(b.shape[0] / 2), 2)  
         tree = KDTree(vert_array, leaf_size=3)
         current_index = 1
         vertices = []
@@ -108,7 +112,7 @@ def slice_file(resolution, f=None, scale_model=None, width_px=None, height_px=No
         for i in range(int(vert_array.shape[0] / 2)):
             to_query = np.reshape(vert_array[current_index], (1, 2))
             _, ind = tree.query(to_query, k=2)
-            for id in list(ind[0]):  # there should only ever be two
+            for id in list(ind[0]):  # there should only be two
                 if id != current_index:
                     # If loop is found,
                     if id in visited_vertices:

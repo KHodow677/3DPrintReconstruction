@@ -142,9 +142,9 @@ class Model(object):
 
 		return out
 
+    # Function to slice the model at a certain z coordinate
+    # Returns an array of tuples describing lines between points
 	def slice_at_z(self, targetz):
-		'''Function to slice the model at a certain z coordinate. Returns
-		an array of tuples, describing the various lines between points.'''
 		output = []
 
 		for triangle in self.triangles:
