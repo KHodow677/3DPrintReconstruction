@@ -2,8 +2,7 @@ from ultralytics import YOLO
 import cv2
 import argparse
 import supervision as sv
-
-# Test Change
+import os    
 
 def parse_arguments() -> argparse.Namespace:    #Define Webcam Resolution
     parser = argparse.ArgumentParser(description="yolov8")
@@ -24,7 +23,7 @@ def main():
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, frame_width)
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, frame_height)
 
-    model = YOLO("Documents/yolov8/best.pt")    #Run YOLO on model
+    model = YOLO("src/MachineLearning/best.pt")    #Run YOLO on model
 
     box_annotator = sv.BoxAnnotator(
         thickness=2,
@@ -36,21 +35,22 @@ def main():
         ret, frame = cap.read()
 
         result = model(frame)[0]
-        detections = sv.Detections.from_ultralytics(result)     #Runs Dection
+        detections = sv.Detections.from_ultralytics(result)     #Runs Detection
         labels = [
             f"{model.model.names[class_id]} {confidence:0.2f}"
-            for _, confidence, class_id, _
+            for _, _, confidence, class_id, _, _
             in detections
-        ]   #Label Failures and Confidence Rate
+        ]
 
         frame = box_annotator.annotate(
             scene=frame,
             detections=detections,
-            labels=labels)
+            labels=labels
+        )
 
         cv2.imshow("yolov8", frame)     #Outputs Frame
 
-        if (cv2.waitKey(0) == 30):      #Break Using Esc
+        if (cv2.waitKey(0) == 27):      #Break Using Esc
             break
         
 
