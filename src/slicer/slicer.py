@@ -3,38 +3,39 @@ sys.path.append(os.getcwd())
 
 from src.slicer.model.model import STLModel
 from src.slicer.model.vector import Vector, Normal
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageOps
 from sklearn.neighbors import KDTree
+from shapely.geometry import Polygon, Point
 import numpy as np
 
 # Determine how much space a pixel takes up physically
 def calculateMultiplier(pixels, mm):
-	return pixels/mm
+    return pixels/mm
 
 def mmToinch(num):
-	return num/25.4
+    return num/25.4
 
 def inchTomm(num):
-	return num*25.4
+    return num*25.4
 
 def convertToPixels(vSet, width_multiplier, height_multiplier, object_center, center_image):
-	mmSet = inchTomm(np.asarray(vSet))
+    mmSet = inchTomm(np.asarray(vSet))
     # Convert to pixels
-	mmSet[:,0]*=width_multiplier
-	mmSet[:,1]*=height_multiplier
+    mmSet[:,0]*=width_multiplier
+    mmSet[:,1]*=height_multiplier
 
-	# Center the object
-	mmSet[:,0]+=(center_image[0])
-	mmSet[:,0]-=(inchTomm(object_center[0])*width_multiplier)
-	mmSet[:,1]+=(center_image[1])
-	mmSet[:,1]-=(inchTomm(object_center[1])*height_multiplier)
+    # Center the object
+    mmSet[:,0]+=(center_image[0])
+    mmSet[:,0]-=(inchTomm(object_center[0])*width_multiplier)
+    mmSet[:,1]+=(center_image[1])
+    mmSet[:,1]-=(inchTomm(object_center[1])*height_multiplier)
 
-	m = list(mmSet)
-	for i in range(len(mmSet)):
-		m[i]= tuple(m[i])
-	return m
+    m = list(mmSet)
+    for i in range(len(mmSet)):
+        m[i]= tuple(m[i])
+    return m
 
-def slice_file(resolution, f=None, scale_model=None, width_px=None, height_px=None, width_printer=None, height_printer=None):
+def slice_file(resolution, direction='z', f=None, scale_model=None, width_px=None, height_px=None, width_printer=None, height_printer=None):
     print("Status: Loading File.")
 
     # Converstion from mm to pixels
@@ -87,15 +88,27 @@ def slice_file(resolution, f=None, scale_model=None, width_px=None, height_px=No
     obj_center_xyz = [(sup_vertex.x + sub_vertex.x) / 2, (sup_vertex.y + sub_vertex.y) / 2,
                       (sup_vertex.z + sub_vertex.z) / 2]  # in inches
 
-    slices = np.linspace(0.001, stats['extents']['z']['upper'] - 0.001,
-                          int(stats['extents']['z']['upper'] / (mmToinch(resolution))) + 1)
+    if direction == 'x':
+        slices = np.linspace(0.001, stats['extents']['x']['upper'] - 0.001,
+                              int(stats['extents']['x']['upper'] / (mmToinch(resolution))) + 1)
+    elif direction == 'y':
+        slices = np.linspace(0.001, stats['extents']['y']['upper'] - 0.001,
+                              int(stats['extents']['y']['upper'] / (mmToinch(resolution))) + 1)
+    elif direction == 'z':
+        slices = np.linspace(0.001, stats['extents']['z']['upper'] - 0.001,
+                              int(stats['extents']['z']['upper'] / (mmToinch(resolution))) + 1)
 
     final_image = Image.new('RGB', (height_px, width_px), color='black')  # Create a blank canvas
 
     tic = time.time()
 
     for slice_idx, slice_val in enumerate(slices):
-        pairs = model.slice_at_z(slice_val)
+        if direction == 'x':
+            pairs = model.slice_at_x(slice_val)
+        elif direction == 'y':
+            pairs = model.slice_at_y(slice_val)
+        elif direction == 'z':
+            pairs = model.slice_at_z(slice_val)
 
         # Now process vertices
         a = np.asarray(pairs)
@@ -140,19 +153,59 @@ def slice_file(resolution, f=None, scale_model=None, width_px=None, height_px=No
 
         # Save the last one to the vertice set
         vertice_sets.append(vertices)
+        img = Image.new('RGB', (height_px, width_px))
+        imgDraw = ImageDraw.Draw(img)
         draw = ImageDraw.Draw(final_image)
+        holes = []
+        # Inside the for loop where polygons are drawn
         for i in range(len(vertice_sets)):
             if len(vertice_sets[i]) > 2:
-                set = convertToPixels(vertice_sets[i], width_multiplier, height_multiplier, obj_center_xyz,
-                                      center_image)
-                draw.polygon(set, fill=(255, 255, 255))
+                set = convertToPixels(vertice_sets[i], width_multiplier, height_multiplier, obj_center_xyz, center_image)
 
+                # Create a polygon object
+                poly = Polygon(set)
+                
+                # Check if any other vertex is inside the polygon
+                # Check if any vertex of the current polygon is inside any other polygon
+                is_hole = False
+                for j in range(len(vertice_sets)):
+                    if j != i and len(vertice_sets[j]) > 2:
+                        other_set = convertToPixels(vertice_sets[j], width_multiplier, height_multiplier, obj_center_xyz, center_image)
+                        other_poly = Polygon(other_set)
+                        for vertex in set:
+                            if other_poly.contains(Point(vertex)):
+                                is_hole = True
+                                break
+                        # for vertex in other_set:
+                        #     if poly.contains(Point(vertex)):
+                        #         is_hole = True
+                        #         break
+                        if is_hole:
+                            break
+                
+                # Fill the polygon based on whether it's a hole or not
+                if is_hole:
+                    holes.append(set)
+                draw.polygon(set, fill=(255, 255, 255))  # Fill non-holes with white
+                imgDraw.polygon(set, fill=(255, 255, 255))
+
+        for set in holes:
+            draw.polygon(set, fill=(0, 0, 0))  # Fill holes with black
+            imgDraw.polygon(set, fill=(0, 0, 0))
+
+        img = ImageOps.flip(img)
+        img.save('res/models/outputs/' + str(slice_idx) + '.png', 'PNG')
+
+    final_image = ImageOps.flip(final_image)
     final_image.save('res/models/outputs/model.png', 'PNG')
 
     print("\nStatus: Finished Outputting Slices")
     print('Time: ', time.time() - tic)
 
 if (__name__ == '__main__'):
-    slice_file(1.0, open('res/models/3DBenchyTest.STL', 'rb'), 0.05, 2048, 2048, 200, 200)
+    slice_file(
+        1.0, direction='y', f=open('res/models/3DBenchyTest.STL', 'rb'), 
+        scale_model=0.05, width_px=2048, height_px=2048, 
+        width_printer=200, height_printer=200)
 
 
