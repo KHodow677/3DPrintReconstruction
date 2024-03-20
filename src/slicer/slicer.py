@@ -219,30 +219,90 @@ def slice_file(resolution, model, direction='z', width_px=None, height_px=None, 
     print("\nStatus: Finished Outputting Slices")
     print('Time: ', time.time() - tic)
 
+def generate_print_height_image(image, x, y, x_span, y_span, print_height_mm, image_size_mm=200):
+    # Get the dimensions of the first snapshot
+    width, height = image.size
+
+    # Convert lengths from mm to pixels
+    x_span_pixels = int(x_span * width / image_size_mm)
+    y_span_pixels = int(y_span * height / image_size_mm)
+    print_height_pixels = int(print_height_mm * height / image_size_mm)  # Convert print height from mm to pixels
+
+    final_image = Image.new('RGB', (width, height), color='black')
+    final_image.paste(image, (0, 0), image)
+    final_draw = ImageDraw.Draw(final_image)
+
+    # Draw rectangle at (0, 0) with dimensions corresponding to the print height
+    final_draw.rectangle([(x, y), (x + x_span_pixels + 1, y + y_span_pixels - print_height_pixels)], fill=(0, 0, 0, 255))
+
+    return final_image
+
+def find_starting_width(image):
+    width, height = image.size
+
+    for x in range(width):
+        for y in range(height):
+            pixel = image.getpixel((x, y))
+            if pixel != (0, 0, 0, 255):  
+                return x
+
+    # If no non-black pixel is found, return the full width
+    return width
+
+def find_starting_height(image):
+    width, height = image.size
+
+    for y in range(height):
+        for x in range(width):
+            pixel = image.getpixel((x, y))
+            if pixel != (0, 0, 0, 255):  
+                return y
+
+    # If no non-black pixel is found, return the full height
+    return height
+
 if (__name__ == '__main__'):
+    res = 1.0
     model = parse_file( 
         f=open('res/models/3DBenchyTest.STL', 'rb'), 
         scale_model=0.05)
-    slice_file(
-        resolution=1.0, model=model, direction='x', 
-        width_px=512, height_px=512, 
-        width_printer=200, height_printer=200,
-        slice_reverse=False, output='res/models/outputs/x1.png')
-    
-    slice_file(
-        resolution=1.0, model=model, direction='y', 
-        width_px=512, height_px=512, 
-        width_printer=200, height_printer=200,
-        slice_reverse=False, output='res/models/outputs/y1.png')
-    
-    slice_file(
-        resolution=1.0, model=model, direction='x', 
-        width_px=512, height_px=512, 
-        width_printer=200, height_printer=200,
-        slice_reverse=True, output='res/models/outputs/x2.png')
-    
-    slice_file(
-        resolution=1.0, model=model, direction='y', 
-        width_px=512, height_px=512, 
-        width_printer=200, height_printer=200,
-        slice_reverse=True, output='res/models/outputs/y2.png')
+    # slice_file(
+    #     resolution=res, model=model, direction='x', 
+    #     width_px=512, height_px=512, 
+    #     width_printer=200, height_printer=200,
+    #     slice_reverse=False, output='res/models/outputs/x1.png')
+    #
+    # slice_file(
+    #     resolution=res, model=model, direction='y', 
+    #     width_px=512, height_px=512, 
+    #     width_printer=200, height_printer=200,
+    #     slice_reverse=False, output='res/models/outputs/y1.png')
+    #
+    # slice_file(
+    #     resolution=res, model=model, direction='x', 
+    #     width_px=512, height_px=512, 
+    #     width_printer=200, height_printer=200,
+    #     slice_reverse=True, output='res/models/outputs/x2.png')
+    #
+    # slice_file(
+    #     resolution=res, model=model, direction='y', 
+    #     width_px=512, height_px=512, 
+    #     width_printer=200, height_printer=200,
+    #     slice_reverse=True, output='res/models/outputs/y2.png')
+
+    (x_min, x_max), (y_min, y_max), (z_min, z_max) = model.extents()
+
+    # Calculate the length, width, and height
+    length = inchTomm(x_max - x_min)
+    width = inchTomm(y_max - y_min)
+    height = inchTomm(z_max - z_min)
+
+    x = find_starting_width(Image.open('res/models/outputs/x1.png'))
+    y = find_starting_height(Image.open('res/models/outputs/x1.png'))
+    elevation = 0.0
+    while (elevation < height):
+        final_print_height_image = generate_print_height_image(Image.open('res/models/outputs/x1.png'), x, y, width, height, elevation)
+        final_print_height_image.save('res/models/outputs/layers/'+str(elevation)+'.png')
+        elevation += res
+
+

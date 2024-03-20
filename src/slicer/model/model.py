@@ -21,7 +21,6 @@ class Model(object):
         self.ymin = self.ymax = None
         self.zmin = self.zmax = None
 
-        # Not the means :D
         self.mx = self.my = self.mz = 0.0
 
         contents = f.read()
