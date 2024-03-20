@@ -1,9 +1,6 @@
 from src.slicer.model.vector import Vector, Normal
-from src.slicer.model.triangle import Triangle
+from src.slicer.model.triangle import Triangle, find_interpolated_points_at_x, find_interpolated_points_at_y, find_interpolated_points_at_z
 from struct import unpack
-from PIL import Image, ImageDraw
-import math
-import numpy as np
 
 # Class to represent 3D objects
 class Model(object):
@@ -26,6 +23,15 @@ class Model(object):
 
         # Not the means :D
         self.mx = self.my = self.mz = 0.0
+
+        contents = f.read()
+        f.close()
+
+        if contents.find(b"vertex", 80) == -1:
+            # File is a binary STL file.
+            self.process_bin(contents)
+        else:
+            self.process_text(contents)
 
     def __str__(self):
         return "3D Model: %s" % self.name
@@ -145,59 +151,6 @@ class Model(object):
 
         return out
 
-    # Function to slice the model at a certain z coordinate
-    # Returns an array of tuples describing lines between points
-    def slice_at_z(self, targetz):
-        output = []
-
-        for triangle in self.triangles:
-            points = triangle.find_interpolated_points_at_z(targetz)
-
-            if len(points) == 2:
-                output.append((points[0], points[1]))
-
-        return output
-
-    # Function to slice the model at a certain x coordinate
-    # Returns an array of tuples describing lines between points
-    def slice_at_x(self, targetx):
-        output = []
-
-        for triangle in self.triangles:
-            points = triangle.find_interpolated_points_at_x(targetx)
-
-            if len(points) == 2:
-                output.append((points[0], points[1]))
-
-        return output
-
-    # Function to slice the model at a certain y coordinate
-    # Returns an array of tuples describing lines between points
-    def slice_at_y(self, targety):
-        output = []
-
-        for triangle in self.triangles:
-            points = triangle.find_interpolated_points_at_y(targety)
-
-            if len(points) == 2:
-                output.append((points[0], points[1]))
-
-        return output
-
-class STLModel(Model):
-
-    def __init__(self, f=None):
-        super(STLModel, self).__init__(f)
-
-        contents = f.read()
-        f.close()
-
-        if contents.find(b"vertex", 80) == -1:
-            # File is a binary STL file.
-            self.process_bin(contents)
-        else:
-            self.process_text(contents)
-
     def process_bin(self, contents=None):
         self.name, num_facets_1 = unpack(b"=80sI", contents[:84])
 
@@ -216,7 +169,6 @@ class STLModel(Model):
             raise ValueError("Incorrect number of facets.")
 
         items = [contents[n:n+50] for n in range(0, facetsz, 50)]
-        del contents
 
         for i in items:
             nx, ny, nz, f1x, f1y, f1z, f2x, f2y, f2z, f3x, f3y, f3z = \
@@ -259,3 +211,42 @@ class STLModel(Model):
             
             self.add_triangle(v1, v2, v3, norm)
             del items[:21]
+
+# Function to slice the model at a certain z coordinate
+# Returns an array of tuples describing lines between points
+def slice_at_z(targetz, triangles):
+    output = []
+
+    for triangle in triangles:
+        points = find_interpolated_points_at_z(targetz, triangle.vertices)
+
+        if len(points) == 2:
+            output.append((points[0], points[1]))
+
+    return output
+
+# Function to slice the model at a certain x coordinate
+# Returns an array of tuples describing lines between points
+def slice_at_x(targetx, triangles):
+    output = []
+
+    for triangle in triangles:
+        points = find_interpolated_points_at_x(targetx, triangle.vertices)
+
+        if len(points) == 2:
+            output.append((points[0], points[1]))
+
+    return output
+
+# Function to slice the model at a certain y coordinate
+# Returns an array of tuples describing lines between points
+def slice_at_y(targety, triangles):
+    output = []
+
+    for triangle in triangles:
+        points = find_interpolated_points_at_y(targety, triangle.vertices)
+
+        if len(points) == 2:
+            output.append((points[0], points[1]))
+
+    return output

@@ -1,7 +1,8 @@
 import sys, os, time
+from typing import final
 sys.path.append(os.getcwd())
 
-from src.slicer.model.model import STLModel
+from src.slicer.model.model import Model, slice_at_x, slice_at_y, slice_at_z
 from src.slicer.model.vector import Vector, Normal
 from PIL import Image, ImageDraw, ImageOps
 from sklearn.neighbors import KDTree
@@ -35,21 +36,14 @@ def convertToPixels(vSet, width_multiplier, height_multiplier, object_center, ce
         m[i]= tuple(m[i])
     return m
 
-def slice_file(resolution, direction='z', f=None, scale_model=None, width_px=None, height_px=None, width_printer=None, height_printer=None):
+def parse_file(f=None, scale_model=None):
     print("Status: Loading File.")
 
-    # Converstion from mm to pixels
-    width_multiplier = calculateMultiplier(width_px, width_printer) 
-    height_multiplier = calculateMultiplier(height_px, height_printer)
-
-    model = STLModel(f)
+    model = Model(f)
     stats = model.stats()
 
     # Note these are in inches not mm
     sub_vertex = Vector(stats['extents']['x']['lower'], stats['extents']['y']['lower'], stats['extents']['z']['lower'])
-
-    # Switch to pixels
-    center_image = [int(width_px / 2), int(height_px / 2)]
 
     model.xmin = model.xmax = None
     model.ymin = model.ymax = None
@@ -76,6 +70,17 @@ def slice_file(resolution, direction='z', f=None, scale_model=None, width_px=Non
         triangle.n = Normal((u.y * v.z) - (u.z * v.y), (u.z * v.x) - (u.x * v.z), (u.x * v.y) - (u.y * v.x))
         model.update_extents(triangle)
 
+    return model
+
+def slice_file(resolution, model, direction='z', width_px=None, height_px=None, width_printer=None, height_printer=None, slice_reverse = False, output= ""):
+
+    # Converstion from mm to pixels
+    width_multiplier = calculateMultiplier(width_px, width_printer) 
+    height_multiplier = calculateMultiplier(height_px, height_printer)
+
+    # Switch to pixels
+    center_image = [int(width_px / 2), int(height_px / 2)]
+
     print("Status: Calculating Slices")
 
     stats = model.stats()
@@ -98,17 +103,22 @@ def slice_file(resolution, direction='z', f=None, scale_model=None, width_px=Non
         slices = np.linspace(0.001, stats['extents']['z']['upper'] - 0.001,
                               int(stats['extents']['z']['upper'] / (mmToinch(resolution))) + 1)
 
-    final_image = Image.new('RGB', (height_px, width_px), color='black')  # Create a blank canvas
+    imgs = []
+    grayIncrement = float(255 / len(slices))
+    color = (0, 0, 0, 255)
 
     tic = time.time()
+    
+    if (slice_reverse):
+        slices = np.flip(slices)
 
     for slice_idx, slice_val in enumerate(slices):
         if direction == 'x':
-            pairs = model.slice_at_x(slice_val)
+            pairs = slice_at_x(slice_val, model.triangles)
         elif direction == 'y':
-            pairs = model.slice_at_y(slice_val)
+            pairs = slice_at_y(slice_val, model.triangles)
         elif direction == 'z':
-            pairs = model.slice_at_z(slice_val)
+            pairs = slice_at_z(slice_val, model.triangles)
 
         # Now process vertices
         a = np.asarray(pairs)
@@ -153,17 +163,16 @@ def slice_file(resolution, direction='z', f=None, scale_model=None, width_px=Non
 
         # Save the last one to the vertice set
         vertice_sets.append(vertices)
-        img = Image.new('RGB', (height_px, width_px))
+        img = Image.new('RGBA', (height_px, width_px))
         imgDraw = ImageDraw.Draw(img)
-        draw = ImageDraw.Draw(final_image)
         holes = []
+        colorVal = int(color[0] + grayIncrement)
+        color = (colorVal, colorVal, colorVal, 255)
+
         # Inside the for loop where polygons are drawn
         for i in range(len(vertice_sets)):
             if len(vertice_sets[i]) > 2:
                 set = convertToPixels(vertice_sets[i], width_multiplier, height_multiplier, obj_center_xyz, center_image)
-
-                # Create a polygon object
-                poly = Polygon(set)
                 
                 # Check if any other vertex is inside the polygon
                 # Check if any vertex of the current polygon is inside any other polygon
@@ -176,36 +185,64 @@ def slice_file(resolution, direction='z', f=None, scale_model=None, width_px=Non
                             if other_poly.contains(Point(vertex)):
                                 is_hole = True
                                 break
-                        # for vertex in other_set:
-                        #     if poly.contains(Point(vertex)):
-                        #         is_hole = True
-                        #         break
                         if is_hole:
                             break
                 
                 # Fill the polygon based on whether it's a hole or not
                 if is_hole:
                     holes.append(set)
-                draw.polygon(set, fill=(255, 255, 255))  # Fill non-holes with white
-                imgDraw.polygon(set, fill=(255, 255, 255))
+                imgDraw.polygon(set, fill=color)
 
         for set in holes:
-            draw.polygon(set, fill=(0, 0, 0))  # Fill holes with black
-            imgDraw.polygon(set, fill=(0, 0, 0))
+            imgDraw.polygon(set, fill=(0, 0, 0, 255))
 
-        img = ImageOps.flip(img)
-        img.save('res/models/outputs/' + str(slice_idx) + '.png', 'PNG')
+        data = img.getdata()
 
+        newData = []
+        for item in data:
+            if item[0] == 0 and item[1] == 0 and item[2] == 0:
+                newData.append((0, 0, 0, 0))
+            else:
+                newData.append(item)
+        
+        img.putdata(newData)
+        imgs.append(img)
+
+    final_image = Image.new('RGBA', (height_px, width_px), color=(0, 0, 0, 255))  
+    for img in imgs:
+        final_image.paste(img, (0, 0), img)  # Paste the current image onto the final image, using itself as the mask
+    if (slice_reverse):
+        final_image = ImageOps.mirror(final_image)
     final_image = ImageOps.flip(final_image)
-    final_image.save('res/models/outputs/model.png', 'PNG')
+    final_image.save(output, 'PNG')
 
     print("\nStatus: Finished Outputting Slices")
     print('Time: ', time.time() - tic)
 
 if (__name__ == '__main__'):
+    model = parse_file( 
+        f=open('res/models/3DBenchyTest.STL', 'rb'), 
+        scale_model=0.05)
     slice_file(
-        1.0, direction='y', f=open('res/models/3DBenchyTest.STL', 'rb'), 
-        scale_model=0.05, width_px=2048, height_px=2048, 
-        width_printer=200, height_printer=200)
-
-
+        resolution=1.0, model=model, direction='x', 
+        width_px=512, height_px=512, 
+        width_printer=200, height_printer=200,
+        slice_reverse=False, output='res/models/outputs/x1.png')
+    
+    slice_file(
+        resolution=1.0, model=model, direction='y', 
+        width_px=512, height_px=512, 
+        width_printer=200, height_printer=200,
+        slice_reverse=False, output='res/models/outputs/y1.png')
+    
+    slice_file(
+        resolution=1.0, model=model, direction='x', 
+        width_px=512, height_px=512, 
+        width_printer=200, height_printer=200,
+        slice_reverse=True, output='res/models/outputs/x2.png')
+    
+    slice_file(
+        resolution=1.0, model=model, direction='y', 
+        width_px=512, height_px=512, 
+        width_printer=200, height_printer=200,
+        slice_reverse=True, output='res/models/outputs/y2.png')
