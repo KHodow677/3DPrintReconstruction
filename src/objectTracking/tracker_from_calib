@@ -16,7 +16,7 @@ dist = cv_file.getNode("dist_coeff").mat()
 
 cv_file.release()
 
-marker_size = 1.918
+marker_size = .936
 
 # Configure depth and color streams
 pipeline = rs.pipeline()
@@ -67,20 +67,22 @@ while (True):
     # detector parameters can be set here (List of detection parameters[3])
     parameters = aruco.DetectorParameters_create()
     parameters.adaptiveThreshConstant = 10
+    parameters.useAruco3Detection = True
 
     # lists of ids and the corners belonging to each id
     corners, ids, rejectedImgPoints = aruco.detectMarkers(gray, aruco_dict, parameters=parameters)
-
     # font for displaying text (below)
     font = cv2.FONT_HERSHEY_SIMPLEX
 
     # check if the ids list is not empty
     # if no check is added the code will crash
     if np.all(ids != None):
-
+        corners1 = corners[0].reshape(4,2)
+        criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 1000, 0.001)
+        corners2 = tuple([cv2.cornerSubPix(gray, corners1, (5,5), (-1,-1), criteria)])
         # estimate pose of each marker and return the values
         # rvet and tvec-different from camera coefficients
-        rvec, tvec ,_ = aruco.estimatePoseSingleMarkers(corners, marker_size, mtx, dist)
+        rvec, tvec ,_ = aruco.estimatePoseSingleMarkers(corners2, marker_size, mtx, dist)
         print(tvec)
         #(rvec-tvec).any() # get rid of that nasty numpy value array error
 
