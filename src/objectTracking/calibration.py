@@ -35,7 +35,7 @@ objpoints = [] # 3d point in real world space
 imgpoints = [] # 2d points in image plane.
 
 
-images = glob.glob('Object Tracking/calib_images_1920/*.png')
+images = glob.glob('src/objectTracking/calib_images_1920/*.png')
 
 count = 0
 for fname in images:
@@ -46,7 +46,6 @@ for fname in images:
     
     # Find the chess board corners
     ret, corners = cv2.findChessboardCorners(gray, (cbcol,cbrow),None)
-    print(type(corners[1][0]))
 
     # If found, add object points, image points (after refining them)
     if ret == True:
@@ -57,7 +56,7 @@ for fname in images:
 
         # Draw and display the corners
         img = cv2.drawChessboardCorners(img, (cbcol, cbrow), corners2,ret)
-        filename = str('Object Tracking/calib_dots_1920/' + str(count) + str('.png'))
+        filename = str('src/objectTracking/calib_dots_1920/' + str(count) + str('.png'))
         cv2.imwrite(filename, img)
         
         # Uncomment the below 2 lines to see the images as they're generated
@@ -69,7 +68,7 @@ cv2.destroyAllWindows()
 ret, mtx, dist, rvecs, tvecs = cv2.calibrateCamera(objpoints, imgpoints, gray.shape[::-1],None,None)
 
 # ---------- Saving the calibration -----------------
-cv_file = cv2.FileStorage("Object Tracking/calib_images_1920/test.yaml", cv2.FILE_STORAGE_WRITE)
+cv_file = cv2.FileStorage("src/objectTracking/calib_images_1920/test.yaml", cv2.FILE_STORAGE_WRITE)
 cv_file.write("camera_matrix", mtx)
 cv_file.write("dist_coeff", dist)
 
